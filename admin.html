@@ -1,0 +1,345 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>PocketSense — Admin Control Center</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Familjen+Grotesk:wght@400;500;600;700&family=Instrument+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@300;400;500;600&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+    import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged
+    } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+    import { getFirestore, collection, addDoc, getDocs, doc, updateDoc,
+             deleteDoc, query, where, orderBy, onSnapshot, serverTimestamp, setDoc
+    } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+    /* ── SAME FIREBASE CONFIG AS index.html ── */
+    const firebaseConfig = {
+      apiKey: "YOUR_API_KEY",
+      authDomain: "YOUR_PROJECT.firebaseapp.com",
+      projectId: "YOUR_PROJECT_ID",
+      storageBucket: "YOUR_PROJECT.appspot.com",
+      messagingSenderId: "YOUR_SENDER_ID",
+      appId: "YOUR_APP_ID"
+    };
+    const app  = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+    const db   = getFirestore(app);
+    window.__FF = { auth, db, signInWithEmailAndPassword, signOut, onAuthStateChanged,
+      collection, addDoc, getDocs, doc, updateDoc, deleteDoc,
+      query, where, orderBy, onSnapshot, serverTimestamp, setDoc };
+    window.dispatchEvent(new Event("firebaseReady"));
+  </script>
+  <link rel="stylesheet" href="admin.css"/>
+</head>
+<body>
+<canvas id="bgParticles" class="bg-particles"></canvas>
+
+<!-- ████ ADMIN LOGIN ████ -->
+<div id="loginScreen" class="login-screen">
+  <canvas id="matrixCanvas" class="matrix-canvas"></canvas>
+  <div class="login-wrap">
+    <div class="login-brand">
+      <div class="lb-icon">&#9878;</div>
+      <h1 class="lb-title">Admin Portal</h1>
+      <p class="lb-sub">PocketSense Control Center</p>
+      <div class="lb-security">
+        <span class="sec-dot"></span>End-to-end encrypted
+      </div>
+    </div>
+    <div class="login-card">
+      <div class="lc-header">
+        <div class="lc-badge">&#9889; RESTRICTED ACCESS</div>
+        <h2>Sign In to Admin</h2>
+        <p>Enter your administrator credentials</p>
+      </div>
+      <form id="adminLoginForm">
+        <div class="lc-field">
+          <label>Admin Email</label>
+          <div class="lc-input-wrap">
+            <span class="lci">&#128273;</span>
+            <input type="email" id="adminEmail" class="lc-input" placeholder="admin@pocketsense.app" autocomplete="email"/>
+          </div>
+        </div>
+        <div class="lc-field">
+          <label>Password</label>
+          <div class="lc-input-wrap">
+            <span class="lci">&#128274;</span>
+            <input type="password" id="adminPass" class="lc-input" placeholder="Enter admin password" autocomplete="current-password"/>
+          </div>
+        </div>
+        <button type="submit" class="lc-btn" id="loginBtn">
+          <span id="loginBtnText">Access Dashboard</span>
+          <svg width="16" height="16" viewBox="0 0 16 16"><path d="M3 8h10M9 4l4 4-4 4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg>
+          <div class="btn-shine"></div>
+        </button>
+        <p class="lc-err hidden" id="loginErr"></p>
+      </form>
+      <div class="lc-demo">
+        <span class="lc-demo-label">Demo credentials:</span>
+        <code class="lc-demo-cred"><a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="3c5d585155527c4c535f5759484f59524f59125d4c4c">[email&#160;protected]</a></code>
+        <code class="lc-demo-cred">admin1234</code>
+      </div>
+      <a href="index.html" class="lc-back">&#8592; Back to user login</a>
+    </div>
+  </div>
+</div>
+
+<!-- ████ ADMIN DASHBOARD ████ -->
+<div id="dashScreen" class="dash-screen hidden">
+
+  <!-- Sidebar -->
+  <aside class="asb" id="asb">
+    <div class="asb-top">
+      <div class="asb-logo">
+        <div class="asb-logo-icon">&#9889;</div>
+        <div>
+          <div class="asb-logo-title">PocketSense</div>
+          <div class="asb-logo-sub">Admin Portal</div>
+        </div>
+      </div>
+      <div class="asb-admin-card">
+        <div class="asb-av" id="asbAv">A</div>
+        <div>
+          <div class="asb-admin-name" id="asbName">Admin</div>
+          <div class="asb-admin-role">Platform Administrator</div>
+        </div>
+        <div class="asb-status-dot"></div>
+      </div>
+    </div>
+    <nav class="asb-nav">
+      <a class="asb-link active" data-sec="overview">
+        <span class="asb-li">&#128202;</span><span>Overview</span>
+      </a>
+      <a class="asb-link" data-sec="users">
+        <span class="asb-li">&#128101;</span><span>Users</span>
+        <span class="asb-count" id="navUserCount">0</span>
+      </a>
+      <a class="asb-link" data-sec="transactions">
+        <span class="asb-li">&#128179;</span><span>All Transactions</span>
+        <span class="asb-count" id="navTxCount">0</span>
+      </a>
+      <a class="asb-link" data-sec="analytics">
+        <span class="asb-li">&#128200;</span><span>Analytics</span>
+      </a>
+    </nav>
+    <div class="asb-bottom">
+      <div class="asb-theme-row">
+        <span class="ath-lbl" id="aThemeLbl">Dark</span>
+        <div class="ath-track" id="aThemeToggle"><div class="ath-knob"></div></div>
+        <span class="ath-icon" id="aThemeIcon">&#127769;</span>
+      </div>
+      <a href="index.html" class="asb-user-link">&#128100; User Dashboard</a>
+      <button class="asb-signout" id="aSignoutBtn">&#9211; Sign Out</button>
+    </div>
+  </aside>
+
+  <!-- Topbar mobile -->
+  <header class="a-topbar">
+    <button class="a-ham" id="aHam">&#9776;</button>
+    <span class="a-tb-brand">&#9889; Admin</span>
+    <div class="a-tb-right">
+      <button class="a-tb-theme" id="aTbTheme">&#9728;</button>
+      <div class="a-tb-av" id="aTbAv">A</div>
+    </div>
+  </header>
+
+  <main class="a-main">
+
+    <!-- ▸ OVERVIEW -->
+    <section class="a-page active" id="sec-overview">
+      <div class="a-page-hdr">
+        <div>
+          <div class="ap-badge">ADMIN DASHBOARD</div>
+          <h1 class="ap-h1">Platform Overview</h1>
+          <p class="ap-sub">Real-time across all users</p>
+        </div>
+        <div class="ap-clock" id="adminClock"></div>
+      </div>
+
+      <div class="kpi-grid">
+        <div class="kpi kpi-purple" data-rev>
+          <div class="kpi-ico">&#128101;</div>
+          <div class="kpi-num" id="kpiUsers">—</div>
+          <div class="kpi-lbl">Total Users</div>
+          <div class="kpi-note" id="kpiUsersNote"></div>
+        </div>
+        <div class="kpi kpi-blue" data-rev>
+          <div class="kpi-ico">&#128179;</div>
+          <div class="kpi-num" id="kpiTx">—</div>
+          <div class="kpi-lbl">Transactions</div>
+          <div class="kpi-note" id="kpiTxNote"></div>
+        </div>
+        <div class="kpi kpi-teal" data-rev>
+          <div class="kpi-ico">&#128176;</div>
+          <div class="kpi-num" id="kpiVol">—</div>
+          <div class="kpi-lbl">Total Volume</div>
+          <div class="kpi-note">all time</div>
+        </div>
+        <div class="kpi kpi-amber" data-rev>
+          <div class="kpi-ico">&#128202;</div>
+          <div class="kpi-num" id="kpiAvg">—</div>
+          <div class="kpi-lbl">Avg Tx/User</div>
+          <div class="kpi-note">platform avg</div>
+        </div>
+        <div class="kpi kpi-green" data-rev>
+          <div class="kpi-ico">&#128200;</div>
+          <div class="kpi-num" id="kpiIncome">—</div>
+          <div class="kpi-lbl">Total Income</div>
+          <div class="kpi-note positive">&#8593; all users</div>
+        </div>
+        <div class="kpi kpi-rose" data-rev>
+          <div class="kpi-ico">&#128201;</div>
+          <div class="kpi-num" id="kpiExpense">—</div>
+          <div class="kpi-lbl">Total Expense</div>
+          <div class="kpi-note negative">&#8595; all users</div>
+        </div>
+      </div>
+
+      <div class="chart-duo">
+        <div class="a-panel" data-rev>
+          <div class="ap-hdr"><h3>Monthly Activity (All Users)</h3></div>
+          <canvas id="monthlyChart" height="180"></canvas>
+        </div>
+        <div class="a-panel" data-rev>
+          <div class="ap-hdr"><h3>Category Distribution</h3></div>
+          <canvas id="catChart" height="180"></canvas>
+          <div id="catLegend" class="cat-legend"></div>
+        </div>
+      </div>
+
+      <!-- Recent global activity -->
+      <div class="a-panel" data-rev>
+        <div class="ap-hdr"><h3>Recent Platform Activity</h3><span class="ap-count" id="recentCount"></span></div>
+        <div id="recentActivity" class="recent-activity"></div>
+      </div>
+    </section>
+
+    <!-- ▸ USERS -->
+    <section class="a-page" id="sec-users">
+      <div class="a-page-hdr">
+        <div>
+          <div class="ap-badge">USER MANAGEMENT</div>
+          <h1 class="ap-h1">Registered Users</h1>
+          <p class="ap-sub" id="userCountLine">Loading...</p>
+        </div>
+        <button class="amber-btn" id="refreshBtn">&#8635; Refresh</button>
+      </div>
+      <div class="a-panel" data-rev>
+        <div class="ap-hdr">
+          <div class="srch-box"><span>&#128269;</span><input type="text" id="userSearch" class="srch-inp" placeholder="Search by name or email..."/></div>
+          <select id="roleFilter" class="a-sel"><option value="all">All Roles</option><option value="user">Users</option><option value="admin">Admins</option></select>
+        </div>
+        <div id="usersTableWrap">
+          <div class="a-loader"><div class="a-spinner"></div><p>Loading users...</p></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ▸ TRANSACTIONS -->
+    <section class="a-page" id="sec-transactions">
+      <div class="a-page-hdr">
+        <div>
+          <div class="ap-badge">ALL TRANSACTIONS</div>
+          <h1 class="ap-h1">Transaction Ledger</h1>
+          <p class="ap-sub" id="txCountLine">Loading...</p>
+        </div>
+        <div class="ap-hdr-actions">
+          <button class="amber-btn" id="addTxBtn">+ Add</button>
+          <button class="ghost-btn" id="exportBtn">&#8595; Export CSV</button>
+        </div>
+      </div>
+      <div class="a-panel" data-rev>
+        <div class="ap-hdr" style="flex-wrap:wrap;gap:10px">
+          <div class="srch-box" style="flex:1;min-width:200px">
+            <span>&#128269;</span><input type="text" id="txSearch" class="srch-inp" placeholder="Search transactions..."/>
+          </div>
+          <select id="txUserFilter" class="a-sel"><option value="all">All Users</option></select>
+          <select id="txTypeFilter" class="a-sel"><option value="all">All Types</option><option value="income">Income</option><option value="expense">Expense</option></select>
+          <select id="txCatFilter" class="a-sel"><option value="all">All Categories</option></select>
+          <select id="txSort" class="a-sel">
+            <option value="date-desc">Newest First</option>
+            <option value="date-asc">Oldest First</option>
+            <option value="amt-desc">Highest Amount</option>
+            <option value="amt-asc">Lowest Amount</option>
+          </select>
+        </div>
+        <div id="txFeed" class="tx-feed"></div>
+        <div class="a-empty hidden" id="txEmpty"><div>&#128269;</div><p>No transactions found</p></div>
+        <div class="a-loader" id="txLoader"><div class="a-spinner"></div><p>Loading transactions...</p></div>
+      </div>
+    </section>
+
+    <!-- ▸ ANALYTICS -->
+    <section class="a-page" id="sec-analytics">
+      <div class="a-page-hdr">
+        <div>
+          <div class="ap-badge">PLATFORM ANALYTICS</div>
+          <h1 class="ap-h1">Deep Analytics</h1>
+        </div>
+      </div>
+      <div class="chart-duo">
+        <div class="a-panel" data-rev>
+          <div class="ap-hdr"><h3>&#127942; Top Spenders</h3></div>
+          <div id="topSpenders"></div>
+        </div>
+        <div class="a-panel" data-rev>
+          <div class="ap-hdr"><h3>&#127942; Top Earners</h3></div>
+          <div id="topEarners"></div>
+        </div>
+      </div>
+      <div class="chart-duo">
+        <div class="a-panel" data-rev>
+          <div class="ap-hdr"><h3>Income vs Expense by User</h3></div>
+          <canvas id="userCompChart" height="200"></canvas>
+        </div>
+        <div class="a-panel" data-rev>
+          <div class="ap-hdr"><h3>Transaction Volume Trend</h3></div>
+          <canvas id="volTrendChart" height="200"></canvas>
+        </div>
+      </div>
+      <div class="a-panel" data-rev>
+        <div class="ap-hdr"><h3>Category Breakdown (All Users)</h3></div>
+        <div id="globalCatBreak"></div>
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<!-- ADD / EDIT TX MODAL -->
+<div class="modal-bg hidden" id="txModal">
+  <div class="modal-box">
+    <div class="modal-hdr"><h2 id="modalTitle">Add Transaction</h2><button class="modal-x" id="modalClose">&#10005;</button></div>
+    <div class="modal-body">
+      <input type="hidden" id="editingId"/>
+      <div class="type-sw">
+        <button class="tsw active" data-t="expense">&#128184; Expense</button>
+        <button class="tsw" data-t="income">&#128181; Income</button>
+        <div class="tsw-track"></div>
+      </div>
+      <div class="mflds">
+        <div class="mfld"><label>Description</label><input type="text" id="mDesc" class="m-inp" placeholder="What was this for?"/></div>
+        <div class="mfld-row">
+          <div class="mfld"><label>Amount (&#8377;)</label><input type="number" id="mAmt" class="m-inp" placeholder="0" min="1"/></div>
+          <div class="mfld"><label>Date</label><input type="date" id="mDate" class="m-inp"/></div>
+        </div>
+        <div class="mfld">
+          <label>Assign to User</label>
+          <select id="mUser" class="m-inp"></select>
+        </div>
+        <div class="mfld"><label>Category</label><div class="cat-picker" id="catPicker"></div></div>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="ghost-btn" id="modalCancel">Cancel</button>
+      <button class="amber-btn" id="modalSave"><span id="saveTxt">Save Transaction</span><div class="btn-shine"></div></button>
+    </div>
+  </div>
+</div>
+<div id="toastStack" class="toast-stack"></div>
+<script src="data.js"></script>
+<script src="admin.js"></script>
+</body>
+</html>
